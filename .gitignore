@@ -1,0 +1,27 @@
+# Secrets - API keys live here
+.env
+
+# Python virtual environment and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# TPC-H toolkit and generated data
+TPC-H V3.0.1/
+*.tbl
+*.dump
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE settings
+.vscode/
+.idea/
+
+# Experiment tools and results
+experiments/
+tools/analyse_results.py
+tools/run_experiments.py
+tools/experiment_queries.json

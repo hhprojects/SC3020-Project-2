@@ -1,0 +1,19 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "dbname": "tpch",
+    "user": "",
+    "password": ""
+  },
+  "ai": {
+    "provider": "claude",
+    "model": "claude-haiku-5-5",
+    "max_retries": 2,
+    "temperature": null,
+    "effort": "low"
+  },
+  "explain": {
+    "statement_timeout_ms": 30000
+  }
+}
