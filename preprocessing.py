@@ -702,12 +702,20 @@ def _check_structure(clean: dict, node_type: str, v: _Validation):
     elif node_type == "Bitmap Heap Scan":
         if not any(c["Node Type"] in _BITMAP_INDEX_TYPES for c in inputs):
             v.warn(f"Bitmap Heap Scan{where} has no Bitmap Index Scan beneath it.")
+        others = [c for c in inputs if c["Node Type"] not in _BITMAP_INDEX_TYPES]
+        for child in others:
+            child["Parent Relationship"] = "SubPlan"
+        if others:
+            v.warn(f"Bitmap Heap Scan{where} has {len(others)} non-bitmap input step(s); "
+                   f"treated as a sub-query (SubPlan).")
     elif node_type in ("BitmapAnd", "BitmapOr"):
         if count < 2:
             v.warn(f"{node_type} combines {count} bitmap(s); it needs at least 2.")
     elif node_type in _LEAF_NODE_TYPES:
         if count:
-            v.warn(f"{node_type}{where} reads directly from storage but has {count} input step(s).")
+            for child in inputs:
+                child["Parent Relationship"] = "SubPlan"
+            v.warn(f"{node_type}{where} has {count} input step(s); treated as a sub-query (SubPlan).")
     elif node_type in _UNARY_NODE_TYPES and count != 1:
         v.warn(f"{node_type} should have exactly 1 input but has {count}.")
 

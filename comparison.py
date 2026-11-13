@@ -230,9 +230,10 @@ def match_nodes(pg_root: LogicalNode, ai_root: LogicalNode) -> list:
 
     Matching runs in two passes, so an early weak match can't take a candidate that a
     later node fits better: pass 1 only accepts candidates in exactly the same position
-    (the same kinds of node directly above and below), pass 2 matches the rest. With
-    several candidates (a self-join, two Sorts over the same tables) the same alias wins,
-    then the same position, then the same method. Pairs are returned in bottom-up
+    (the same kinds of node directly above and below, both inside or both outside a
+    sub-query), pass 2 matches the rest. With several candidates (a self-join, two Sorts
+    over the same tables) the same alias wins, then being inside a sub-query or not, then
+    the same position, then the same method. Pairs are returned in bottom-up
     PostgreSQL order, followed by the steps only the AI has.
     """
     ai_by_signature = defaultdict(list)
@@ -240,11 +241,16 @@ def match_nodes(pg_root: LogicalNode, ai_root: LogicalNode) -> list:
         ai_by_signature[node.signature].append(node)
 
     context = {}
+
+    def record(node, above, in_subquery):
+        """Context of a node: the kind of step above it, the kinds below it, and whether it is in a sub-query."""
+        in_subquery = in_subquery or node.is_subplan
+        context[id(node)] = (above, tuple(c.category for c in node.children), in_subquery)
+        for child in node.children:
+            record(child, node.category, in_subquery)
+
     for root in (pg_root, ai_root):
-        context[id(root)] = (None, tuple(c.category for c in root.children))
-        for node in root.walk():
-            for child in node.children:
-                context[id(child)] = (node.category, tuple(c.category for c in child.children))
+        record(root, None, False)
 
     matched = {}
     pending = list(pg_root.walk())
@@ -259,8 +265,9 @@ def match_nodes(pg_root: LogicalNode, ai_root: LogicalNode) -> list:
             if not usable:
                 unmatched.append(pg_node)
                 continue
-            pg_above, pg_below = context[id(pg_node)]
+            pg_above, pg_below, pg_in_subquery = context[id(pg_node)]
             best = max(usable, key=lambda a: (pg_node.alias is not None and a.alias == pg_node.alias,
+                                              context[id(a)][2] == pg_in_subquery,
                                               context[id(a)][0] == pg_above,
                                               context[id(a)][1] == pg_below,
                                               a.method == pg_node.method))
