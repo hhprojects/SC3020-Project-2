@@ -30,8 +30,15 @@ echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zshrc && so
 Download **TPC-H Tools** from https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp
 and unzip it. The generator is in the `dbgen` folder.
 
-- **Windows:** open `dbgen\tpch.vcproj` (or `tpch.sln`) in Visual Studio and build it. Running the built
-  `dbgen.exe -s 1` creates the `.tbl` files.
+- **Windows:** install Visual Studio Community (free) with the **Desktop development with C++** workload.
+  Open `dbgen\tpch.sln` and accept the one-time project upgrade. Keep the **Debug | Win32** configuration
+  (Release is missing settings dbgen needs). In Solution Explorer, right-click **dbgen** → **Build**.
+  Don't use *Build Solution*: it also builds `qgen`, which fails and isn't needed. Then, in Command Prompt:
+  ```
+  cd C:\path\to\dbgen
+  Debug\dbgen.exe -s 1
+  ```
+  dbgen must be run from inside the `dbgen` folder (it reads `dists.dss` there); the `.tbl` files appear there too.
 - **macOS:** in the `dbgen` folder, copy `makefile.suite` to `makefile` and set
   `CC=gcc`, `DATABASE=ORACLE`, `MACHINE=LINUX`, `WORKLOAD=TPCH`. Run `make`, then `./dbgen -s 1`.
   If the build complains about `malloc.h`, change `#include <malloc.h>` to `#include <stdlib.h>` in the
@@ -121,9 +128,18 @@ OPENAI_API_KEY=sk-...
 
 ## 5. Run
 
+From the project folder:
 ```bash
-.venv/bin/python project.py
+# Windows (Command Prompt)
+.venv\Scripts\activate
+python project.py
+
+# macOS
+source .venv/bin/activate
+python project.py
 ```
+In PyCharm: set the project interpreter to `.venv\Scripts\python.exe` (Windows) or `.venv/bin/python`
+(macOS), then run `project.py`.
 
 ### Using the program
 1. Check the **top bar**: the database (e.g. `tpch`) and the AI provider/model.
@@ -141,7 +157,7 @@ OPENAI_API_KEY=sk-...
    - **Comparison** panel – the **difference rate** (0% = identical plans, 100% = nothing in common), every
      difference with its explanation, the similarities, and notes that don't count towards the score.
    - **Text view** – both plans as indented text, plus the AI's own reasoning and any **validation
-     warnings** (made-up tables/indexes/columns, missing tables, impossible plan structure).··
+     warnings** (made-up tables/indexes/columns, missing tables, impossible plan structure).
 
 ---
 
