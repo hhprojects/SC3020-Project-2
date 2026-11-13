@@ -8,7 +8,8 @@ Algorithm:
      doesn't count as a difference: Gather / Gather Merge are dropped,
      Partial + Finalize Aggregate become one Aggregate, a Hash node is folded
      into its Hash Join, Bitmap Index Scans into their Bitmap Heap Scan, and
-     Materialize / Memoize into the node they cache.
+     Materialize / Memoize into the node they cache. Unique counts as a sorted
+     aggregate, so it can match a hash aggregate that removes the same duplicates.
   2. Give every logical node a signature: (category, multiset of base tables
      beneath it), e.g. ('join', ('nation', 'region')). Nodes with the same
      signature in both trees play the same role, so they are matched
@@ -49,9 +50,9 @@ JOIN_NODES = {"Nested Loop", "Hash Join", "Merge Join"}
 CATEGORY_OF = {
     **{t: "scan" for t in SCAN_NODES},
     **{t: "join" for t in JOIN_NODES},
-    "Aggregate": "aggregate", "Group": "aggregate",
+    "Aggregate": "aggregate", "Group": "aggregate", "Unique": "aggregate",
     "Sort": "sort", "Incremental Sort": "sort",
-    "Limit": "limit", "Unique": "distinct", "WindowAgg": "window",
+    "Limit": "limit", "WindowAgg": "window",
     "Append": "set operation", "Merge Append": "set operation", "SetOp": "set operation",
     "Recursive Union": "set operation",
 }
@@ -66,7 +67,7 @@ class LogicalNode:
     """One step of a plan after normalisation; remembers the original nodes it covers.
 
     Attributes:
-        category:   scan / join / aggregate / sort / limit / distinct / window / set operation / other
+        category:   scan / join / aggregate / sort / limit / window / set operation / other
         method:     how the step is done, e.g. 'Index Scan', 'Hash Join', or 'Hashed' for an aggregate
         plan_node:  the main original PlanNode
         members:    every original PlanNode folded into this step (e.g. a Gather or Hash node),
@@ -122,6 +123,8 @@ class LogicalNode:
             text = f"a {self.method}"
             return text + (f" ({self.join_type.lower()} join)" if self.join_type != "Inner" else "")
         if self.category == "aggregate":
+            if self.plan_node.node_type == "Unique":
+                return "sort-based duplicate removal (keeps one row from each run of equal, sorted rows)"
             return {
                 "Hashed": "hash aggregation (groups rows in a hash table)",
                 "Sorted": "sorted aggregation (groups rows that arrive sorted)",
@@ -153,7 +156,7 @@ def normalise(node: PlanNode) -> LogicalNode:
       - A Hash node only builds its Hash Join's hash table, so it is folded into the join.
       - A Bitmap Heap Scan and the Bitmap Index Scan(s) beneath it become one 'Bitmap Scan'.
       - Partial Aggregate + Finalize Aggregate (with or without a Gather between them)
-        become one Aggregate.
+        become one Aggregate, and the two Unique steps around a Gather Merge become one Unique.
     """
     node_type = node.node_type
     is_subplan = node.attributes.get("Parent Relationship") in SUBPLAN_ROLES
@@ -190,7 +193,7 @@ def normalise(node: PlanNode) -> LogicalNode:
     elif node_type == "Aggregate":
         logical.method = node.attributes.get("Strategy", "Plain")
         logical.partial = node.attributes.get("Partial Mode") == "Partial"
-    elif node_type == "Group":
+    elif node_type in ("Group", "Unique"):
         logical.method = "Sorted"
     if category == "join":
         hash_nodes = [c for c in children if c.node_type == "Hash" and len(c.children) == 1]
@@ -201,6 +204,7 @@ def normalise(node: PlanNode) -> LogicalNode:
 
     if (logical.category == "aggregate" and len(logical.children) == 1
             and logical.children[0].category == "aggregate"
+            and logical.children[0].plan_node.node_type == node_type
             and (logical.children[0].partial or logical.children[0].via_gather)):
         inner = logical.children.pop()
         logical.members += inner.members
@@ -438,11 +442,14 @@ def _explain_join(pg: LogicalNode, ai: LogicalNode) -> str:
 
 
 def _explain_aggregate(pg: LogicalNode, ai: LogicalNode) -> str:
-    """Explain a different grouping strategy (hash, sorted or plain aggregation)."""
-    text = f"For grouping, PostgreSQL uses {pg.describe()}, the AI uses {ai.describe()}. "
+    """Explain a different grouping or duplicate-removal strategy (hash, sorted or plain aggregation)."""
+    removes_duplicates = "Unique" in (pg.plan_node.node_type, ai.plan_node.node_type)
+    task = "removing duplicates" if removes_duplicates else "grouping"
+    text = f"For {task}, PostgreSQL uses {pg.describe()}, the AI uses {ai.describe()}. "
     if {pg.method, ai.method} == {"Hashed", "Sorted"}:
-        text += ("Hash aggregation avoids sorting but must hold every group in memory (work_mem); "
-                 "sorted aggregation is preferred when the input is already sorted or there are many groups.")
+        text += ("A hash table avoids sorting but must hold every group in memory (work_mem); "
+                 "the sort-based method is preferred when the input is already sorted or there are "
+                 "very many groups.")
     return text
 
 
@@ -462,11 +469,13 @@ def _explain_unmatched(node: LogicalNode, parent: Optional[LogicalNode], who: st
     feeding = f" to feed the {_step_name(parent)} step above it" if parent else ""
     if node.category == "sort":
         return f"{who} sorts the rows over {tables}{feeding}; {other}'s plan has no sort here."
-    return f"{who} has a {node.method} step over {tables}{feeding} that {other}'s plan lacks."
+    return f"{who} has {_a(_step_name(node))} step over {tables}{feeding} that {other}'s plan lacks."
 
 
 def _step_name(node: LogicalNode) -> str:
     """Short name for a step, e.g. 'Hash Join' or 'sorted aggregation'."""
+    if node.plan_node.node_type == "Unique":
+        return "duplicate-removal (Unique)"
     return f"{node.method.lower()} aggregation" if node.category == "aggregate" else node.method
 
 
@@ -478,7 +487,8 @@ def _explain_same(pg: LogicalNode) -> str:
     if pg.category == "join":
         return f"Both join {tables} with {pg.describe()}."
     if pg.category == "aggregate":
-        return f"Both group the rows with {pg.describe()}."
+        action = "remove duplicates" if pg.plan_node.node_type == "Unique" else "group the rows"
+        return f"Both {action} with {pg.describe()}."
     return f"Both apply a {pg.method} step over {tables}."
 
 
