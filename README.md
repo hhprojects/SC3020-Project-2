@@ -9,7 +9,8 @@
 3. The PostgreSQL service starts automatically, now and on every boot.
 4. Add PostgreSQL's tools to PATH so `psql` and `createdb` work in Command Prompt:
    `C:\Program Files\PostgreSQL\16\bin`
-   (Start → "Edit the system environment variables" → Environment Variables → Path → New.)
+   (Start → "Edit the system environment variables" → Environment Variables → select **Path** under
+   *User variables* → Edit → New.)
    Open a **new** Command Prompt afterwards.
 
 **Login on Windows:** user `postgres`, with the password from step 2.
@@ -31,8 +32,9 @@ Download **TPC-H Tools** from https://www.tpc.org/tpc_documents_current_versions
 and unzip it. The generator is in the `dbgen` folder.
 
 - **Windows:** install Visual Studio Community (free) with the **Desktop development with C++** workload.
-  Open `dbgen\tpch.sln` and accept the one-time project upgrade. Keep the **Debug | Win32** configuration
-  (Release is missing settings dbgen needs). In Solution Explorer, right-click **dbgen** → **Build**.
+  Open `dbgen\tpch.sln` and click **OK** on the *One-way upgrade* prompt. Keep the **Debug | Win32**
+  configuration (Release is missing settings dbgen needs). In Solution Explorer (View → Solution Explorer),
+  right-click **dbgen** → **Build**.
   Don't use *Build Solution*: it also builds `qgen`, which fails and isn't needed. Then, in Command Prompt:
   ```
   cd C:\path\to\dbgen
