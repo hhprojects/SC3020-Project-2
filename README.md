@@ -100,7 +100,7 @@ Edit the `database` section to match your machine:
 
 | Field | Windows | macOS |
 |---|---|---|
-| `user` | `"postgres"` | `""` (leave empty) |
+| `user` | `"postgres"` (already set) | `""` (delete the default `postgres`) |
 | `password` | your installer password | `""` (leave empty) |
 | `host`, `port` | `"localhost"`, `5432` | `"localhost"`, `5432` |
 | `dbname` | the database to open first, e.g. `"tpch"` | same |
