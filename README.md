@@ -118,13 +118,18 @@ The `ai` section chooses the AI agent. The default is Claude Haiku 5.5:
 ```
 
 ### 4c. AI API key – `.env`
-Copy `.env.example` to a new file called `.env` in the project folder and put the key for **your chosen
-provider** in it, one key per line:
+The submitted zip already includes a `.env` file with a Claude API key for marking (spending capped at
+US$3). The key is meant for the default model, Claude Haiku 5.5, so leave the AI provider and model in the
+program's top bar as they are, and skip the rest of this step.
+
+To use your own key or another provider, put its key in `.env` in the project folder (copy `.env.example`
+to `.env` first if there is none), one key per line:
 ```
 CLAUDE_API_KEY=sk-ant-...
 GEMINI_API_KEY=...
 OPENAI_API_KEY=sk-...
 ```
+Then choose that provider in the program's top bar.
 
 ---
 
