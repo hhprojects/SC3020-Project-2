@@ -27,6 +27,8 @@ echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zshrc && so
 
 ## 2. Create the TPC-H database
 
+If the database is already loaded in PostgreSQL, skip to step 3 and set `dbname` in step 4a.
+
 ### 2a. Generate the data files
 Download **TPC-H Tools** from https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp
 and unzip it. The generator is in the `dbgen` folder.
@@ -61,6 +63,7 @@ Run it from the project folder with the virtual environment activated:
 python tools\load_tpch.py --data-dir C:\path\to\dbgen --dbname tpch --user postgres --password YOUR_PASSWORD   # Windows
 python tools/load_tpch.py --data-dir "path/to/dbgen" --dbname tpch                                             # macOS
 ```
+`--data-dir` is the folder holding the 8 `.tbl` files (the `dbgen` folder, unless you moved them).
 
 ### 2c. Check it worked
 ```bash
